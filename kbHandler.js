@@ -1,3 +1,10 @@
+/*This code is taken from @kittykatattack's Pixi.js guide for simple implementation of keyboard events
+  into Pixi.js. So a massive thank you to them.
+
+  Link to their page:
+  https://github.com/kittykatattack/learningPixi?tab=readme-ov-file#keyboard-movement
+*/
+
 function keyboard(value) {
     const key = {};
     key.value = value;
