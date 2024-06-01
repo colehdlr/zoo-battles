@@ -2,7 +2,9 @@ import Player from "./player.js";
 import keyboard from "./kbHandler.js";
 
 let fetched = false;
-fetch('./maps.json')
+
+// Maps.json
+fetch('https://raw.githubusercontent.com/colehdlr/zoo-battles/main/maps.json')
   .then(response => response.json())
   .then(data => {
     maps = data.maps;
@@ -68,6 +70,8 @@ document.getElementById('hostButton').addEventListener('click', function() {
         const mapNum = document.getElementById('maps').value;
         if (name !== "") {
             document.getElementById('mainMenu').style.display = 'none';
+            document.getElementById('gui').style.display = 'block';
+            document.getElementById('gameId').innerHTML = peer.id;
             playerName = name;
             hostGame(mapNum);
         }
@@ -118,6 +122,7 @@ function connectPeer(peerId) {
             case "ZOOBATTLE":
                 // Server has recieved the request
                 verifiedConnection = true;
+                document.getElementById('gameId').innerHTML = conn.id;
                 joinGame(conn, data[1].mapNum, data[1].playersInfo);
                 break;
             case "UPDATE":
@@ -147,6 +152,7 @@ function connectPeer(peerId) {
 function joinGame(conn, mapNum, playersInfo) {
     // INIT GAME
     document.getElementById('mainMenu').style.display = 'none';
+    document.getElementById('gui').style.display = 'block';
 
     // APP INIT
     document.body.appendChild(app.canvas);
@@ -179,8 +185,8 @@ function joinGame(conn, mapNum, playersInfo) {
 
         // MOVE CAMERA
         if (player.position.x !== NaN) {
-            const moveX = player.sprite.getGlobalPosition().x - window.innerWidth/2;
-            const moveY = player.sprite.getGlobalPosition().y - window.innerHeight/2;
+            const moveX = player.sprite.getGlobalPosition().x - app.width/2;
+            const moveY = player.sprite.getGlobalPosition().y - app.height/2;
             all.position.x -= moveX*delta.deltaTime*0.2;
             all.position.y -= moveY*delta.deltaTime*0.2;
         }
@@ -189,7 +195,7 @@ function joinGame(conn, mapNum, playersInfo) {
 
 function hostGame(mapNum) {
     // CREATE SERVER
-    peer.options.port = 8080 // REMOVE AFTER TESTING
+    peer.options.port = 8080 // REMOVE AFTER TESTING --------------------- ALERT ------------------ ALERT ---------------- ALERT ------------------------- ALERT ---------
 
     // ALLOW CONNECTION
     peer.on('connection', function(conn) {
@@ -319,8 +325,8 @@ function gameLoop(delta) {
     player.update(delta, map.children, map.position);
 
     // MOVE CAMERA
-    const moveX = player.sprite.getGlobalPosition().x - window.innerWidth/2;
-    const moveY = player.sprite.getGlobalPosition().y - window.innerHeight/2;
+    const moveX = player.sprite.getGlobalPosition().x - app.width/2;
+    const moveY = player.sprite.getGlobalPosition().y - app.height/2;
     all.position.x -= moveX*delta*0.2;
     all.position.y -= moveY*delta*0.2;
 }

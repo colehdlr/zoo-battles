@@ -6,7 +6,10 @@
     <style>
         body {margin: 0px; overflow: hidden;}
         #mainMenu {position: absolute; margin-left: 20px;}
+        #gui {position: absolute; color: white;}
     </style>
+    <link rel="icon" type="image/x-icon" href="https://raw.githubusercontent.com/colehdlr/zoo-battles/main/favicon.png">
+    <title>Zoo Battles | Play Now!</title>
   </head>
   <body>
     <script type="module" src="main.js"></script>
@@ -32,6 +35,9 @@
       <label for="peerId">Enter lobby ID:</label>
       <input type="text" id="peerId"/>
       <button id="joinButton">Join</button>
+    </div>
+    <div id="gui">
+      <h1 id="gameId"></h1>
     </div>
   </body>
 </html>

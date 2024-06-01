@@ -46,7 +46,7 @@ class Player {
             this.position.y = origin.y - 200;
             this.position.x = origin.x - this.sprite.getBounds().width/2;
             this.velocity.y = 0;
-            console.log("Respawn", this.velocity, this.position);
+            console.log("Respawning player ID:", this.id, this.velocity, this.position);
         }
 
         // Check if each platform intersects
