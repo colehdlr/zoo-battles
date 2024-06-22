@@ -1,8 +1,6 @@
 import Player from "./player.js";
 import keyboard from "./kbHandler.js";
 
-let fetched = false;
-
 // Maps.json
 fetch('https://raw.githubusercontent.com/colehdlr/zoo-battles/main/maps.json')
   .then(response => response.json())
@@ -10,12 +8,12 @@ fetch('https://raw.githubusercontent.com/colehdlr/zoo-battles/main/maps.json')
     maps = data.maps;
     fetched = true;
   })
-  .catch(error => console.error('Error fetching the JSON file:', error));
+  .catch(error => console.error('Error fetching map', error));
 
 // APP
 const app = new PIXI.Application();
 await app.init({transparent:true, antialias: true, resizeTo: window});
-app.resizeTo = ""; // Don't resize again
+app.resizeTo = ''; // Don't resize again
 
 // MAP
 const world = new PIXI.Container();
@@ -46,6 +44,7 @@ const enemyCtx = new PIXI.GraphicsContext()
 let playerName;
 let player;
 let maps;
+let fetched = false;
 const players = [];
 
 // INPUTS
@@ -130,6 +129,8 @@ function connectPeer(peerId) {
                 for (let i = 0; i < playersInfo.length; i++) {
                     players[i].sprite.position.x = playersInfo[i].x;
                     players[i].sprite.position.y = playersInfo[i].y;
+                    players[i].velocity.x = playersInfo[i].vx;
+                    players[i].velocity.y = playersInfo[i].vy;
                 }
                 break;
             default:
@@ -137,6 +138,7 @@ function connectPeer(peerId) {
                 break;
         }
     });
+
 
     setTimeout(() => {
         if (!verifiedConnection) {
@@ -183,10 +185,16 @@ function joinGame(conn, mapNum, playersInfo) {
         const updateInfo = checkInputsClient(delta.deltaTime);
         conn.send(["UPDATE", updateInfo]);
 
+        // Update velocities for each frame
+        players.forEach(player => {
+            player.position.x += delta.deltaTime*player.acceleration*player.velocity.x;
+            player.position.y -= delta.deltaTime*player.acceleration*player.velocity.y;
+        });
+
         // MOVE CAMERA
         if (player.position.x !== NaN) {
-            const moveX = player.sprite.getGlobalPosition().x - app.width/2;
-            const moveY = player.sprite.getGlobalPosition().y - app.height/2;
+            const moveX = player.sprite.getGlobalPosition().x - app.canvas.width/2;
+            const moveY = player.sprite.getGlobalPosition().y - app.canvas.height/2;
             all.position.x -= moveX*delta.deltaTime*0.2;
             all.position.y -= moveY*delta.deltaTime*0.2;
         }
@@ -262,7 +270,9 @@ function hostGame(mapNum) {
                     for (let i = 0; i < players.length; i++) {
                         const posX = players[i].sprite.position.x;
                         const posY = players[i].sprite.position.y;
-                        playerPositions.push({x: posX, y: posY});
+                        const velX = players[i].velocity.x;
+                        const velY = players[i].velocity.y;
+                        playerPositions.push({x: posX, y: posY, vx: velX, vy: velY});
                     }
                     conn.send(["UPDATE", playerPositions]);
                     break;
@@ -325,10 +335,16 @@ function gameLoop(delta) {
     player.update(delta, map.children, map.position);
 
     // MOVE CAMERA
-    const moveX = player.sprite.getGlobalPosition().x - app.width/2;
-    const moveY = player.sprite.getGlobalPosition().y - app.height/2;
-    all.position.x -= moveX*delta*0.2;
-    all.position.y -= moveY*delta*0.2;
+    if (player.sprite) {
+        const moveX = player.sprite.getGlobalPosition().x - app.canvas.width/2;
+        const moveY = player.sprite.getGlobalPosition().y - app.canvas.height/2;
+        all.position.x -= moveX*delta*0.2;
+        all.position.y -= moveY*delta*0.2;
+    }
+    else {
+        console.warn("Player is not loaded. Cannot reposition camera.");
+    }
+    
 }
 
 function checkInputs(delta) {
