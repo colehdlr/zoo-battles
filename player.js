@@ -1,9 +1,12 @@
 class Player {
-    constructor(sprite, id, name) {
+    constructor(sprite, id, name, container) {
+        this.horizontal; // Is left or right down
+        this.jump; // Have they pressed jump
+        this.container = container;
         this.sprite = sprite;
         this.id = id;
         this.name = name;
-        this.position = this.sprite.position;
+        this.position = this.container.position;
         this.velocity = {
             x: 0,
             y: 0
@@ -21,15 +24,19 @@ class Player {
     update(delta, map, origin) {
         // Max speed
         let dif = Math.abs((Math.abs(this.velocity.x) - Math.abs(this.maxSpeed)) * 2 * delta);
-        if (delta > 0.5) {
-            dif /= (2 * delta);
-        }
+        
         if (this.velocity.x - dif >= this.maxSpeed) {
             this.velocity.x -= dif;
         }
         else if (this.velocity.x + dif <= -this.maxSpeed) {
             this.velocity.x += dif;
         }
+
+        // Make zero when small to avoid underflow
+        if (Math.abs(this.velocity.x) < 1e-10) {
+            this.velocity.x = 0;
+        }
+
         this.grounded = false;
 
         // Gravity
@@ -108,10 +115,12 @@ class Player {
                     // On the right
                     if (right) {
                         this.position.x += xDepth;
+                        this.velocity.x = 0;
                     }
                     // On the left
                     else {
                         this.position.x -= xDepth;
+                        this.velocity.x = 0;
                     }
 
                     // Slow down fall

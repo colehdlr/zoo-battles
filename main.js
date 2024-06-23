@@ -10,10 +10,9 @@ fetch('https://raw.githubusercontent.com/colehdlr/zoo-battles/main/maps.json')
   })
   .catch(error => console.error('Error fetching map', error));
 
-// APP
+// INIT APP
 const app = new PIXI.Application();
-await app.init({transparent:true, antialias: true, resizeTo: window});
-app.resizeTo = ''; // Don't resize again
+await app.init({transparent: true, antialias: true, resizeTo: window});
 
 // MAP
 const world = new PIXI.Container();
@@ -21,31 +20,41 @@ const map = new PIXI.Container();
 const all = new PIXI.Container();
 
 /* CONTAINER TREE
-                 stage
-                  all
-         world            
+              stage
+               all
+              world            
      map     enemies   player
 */
 
+// HITBOXES
 const smallRectCtx = new PIXI.GraphicsContext()
-        .rect(0, 0, 200, 100)
-        .fill('yellow');
+    .rect(0, 0, 200, 100)
+    .fill('yellow');
 const largeRectCtx = new PIXI.GraphicsContext()
-        .rect(0, 0, 500, 100)
-        .fill('orange');
+    .rect(0, 0, 500, 100)
+    .fill('orange');
 const playerCtx = new PIXI.GraphicsContext()
-        .rect(0, 0, 50, 100)
-        .fill('green');
+    .rect(0, 0, 50, 100)
+    .fill('green');
 const enemyCtx = new PIXI.GraphicsContext()
-        .rect(0, 0, 50, 100)
-        .fill('red');
+    .rect(0, 0, 50, 100)
+    .fill('red');
+const playerLabelStyle = new PIXI.TextStyle({
+    align: 'center',
+    fill: '#ffffff',
+    fontWeight: 'bold',
+    stroke: {
+        color: '#000000',
+        width: 4
+    }
+});
 
 // SPRITES
 let playerName;
 let player;
 let maps;
 let fetched = false;
-const players = [];
+let players = [];
 
 // INPUTS
 const left = keyboard("ArrowLeft");
@@ -106,8 +115,8 @@ function connectPeer(peerId) {
     var verifiedConnection = false;
 
     // GREET SERVER
-    conn.on('open', function(){
-        conn.send(["ZOOBATTLE", {id: peer.id, name: playerName}]);
+    conn.on('open', () => {
+        conn.send(["ZOOBATTLE", {name: playerName}]);
     });
     // CAN'T CONNECT
     conn.on('error', (error) => {
@@ -116,19 +125,19 @@ function connectPeer(peerId) {
         return;
     });
     // RECIEVE DATA
-    conn.on('data', function(data){
+    conn.on('data', (data) => {
         switch (data[0]) {
             case "ZOOBATTLE":
                 // Server has recieved the request
                 verifiedConnection = true;
-                document.getElementById('gameId').innerHTML = conn.id;
+                document.getElementById('gameId').innerHTML = peerId;
                 joinGame(conn, data[1].mapNum, data[1].playersInfo);
                 break;
             case "UPDATE":
                 const playersInfo = data[1];
                 for (let i = 0; i < playersInfo.length; i++) {
-                    players[i].sprite.position.x = playersInfo[i].x;
-                    players[i].sprite.position.y = playersInfo[i].y;
+                    players[i].container.position.x = playersInfo[i].x;
+                    players[i].container.position.y = playersInfo[i].y;
                     players[i].velocity.x = playersInfo[i].vx;
                     players[i].velocity.y = playersInfo[i].vy;
                 }
@@ -139,7 +148,7 @@ function connectPeer(peerId) {
         }
     });
 
-
+    // Ensure connection is valid
     setTimeout(() => {
         if (!verifiedConnection) {
             conn.close();
@@ -164,14 +173,26 @@ function joinGame(conn, mapNum, playersInfo) {
 
     // ADD PLAYER
     const playerSprite = new PIXI.Graphics(playerCtx);
-    player = new Player(playerSprite, peer.id, playerName);
-    world.addChild(player.sprite);
+    const playerContainer = new PIXI.Container();
+    const playerLabel = new PIXI.Text({text: playerName, style: playerLabelStyle});
+    playerLabel.position.y -= 40;
+    playerLabel.position.x += playerSprite.width/2 - playerLabel.width/2;
+    playerContainer.addChild(playerSprite);
+    playerContainer.addChild(playerLabel);
+    player = new Player(playerSprite, peer.id, playerName, playerContainer);
+    world.addChild(player.container);
 
     playersInfo.forEach(enemyInfo => {
         const enemySprite = new PIXI.Graphics(enemyCtx);
-        const enemy = new Player(enemySprite, enemyInfo.id, enemyInfo.name);
+        const enemyContainer = new PIXI.Container();
+        const enemyLabel = new PIXI.Text({text: enemyInfo.name, style: playerLabelStyle});
+        enemyLabel.position.y -= 40;
+        enemyLabel.position.x += enemySprite.width/2 - enemyLabel.width/2;
+        enemyContainer.addChild(enemySprite);
+        enemyContainer.addChild(enemyLabel);
+        const enemy = new Player(enemySprite, enemyInfo.id, enemyInfo.name, enemyContainer);
         players.push(enemy);
-        world.addChild(enemy.sprite);
+        world.addChild(enemy.container);
     });
 
     players.push(player); // This is done here to match the order of the host
@@ -182,8 +203,10 @@ function joinGame(conn, mapNum, playersInfo) {
     // GAME LOOP
     app.ticker.maxFPS = 144;
     app.ticker.add((delta) => {
-        const updateInfo = checkInputsClient(delta.deltaTime);
-        conn.send(["UPDATE", updateInfo]);
+        checkInputs();
+        const horizontal = player.horizontal;
+        const jump = player.jump;
+        conn.send(["UPDATE", {horizontal, jump}]);
 
         // Update velocities for each frame
         players.forEach(player => {
@@ -192,7 +215,7 @@ function joinGame(conn, mapNum, playersInfo) {
         });
 
         // MOVE CAMERA
-        if (player.position.x !== NaN) {
+        if (player.position !== NaN) {
             const moveX = player.sprite.getGlobalPosition().x - app.canvas.width/2;
             const moveY = player.sprite.getGlobalPosition().y - app.canvas.height/2;
             all.position.x -= moveX*delta.deltaTime*0.2;
@@ -206,9 +229,10 @@ function hostGame(mapNum) {
     peer.options.port = 8080 // REMOVE AFTER TESTING --------------------- ALERT ------------------ ALERT ---------------- ALERT ------------------------- ALERT ---------
 
     // ALLOW CONNECTION
-    peer.on('connection', function(conn) {
+    peer.on('connection', (conn) => {
         console.log("Connected to new client.");
-        conn.on('data', function(data){
+        let connId = conn.peer;
+        conn.on('data', (data) => {
             //console.log(data);
             switch (data[0]) {
                 case "ZOOBATTLE":
@@ -224,63 +248,60 @@ function hostGame(mapNum) {
 
                     // Use data
                     const enemySprite = new PIXI.Graphics(enemyCtx);
-                    const enemy = new Player(enemySprite, data[1].id, data[1].name);
-                    world.addChild(enemy.sprite);
-                    enemy.sprite.position = map.position;
+                    const enemyContainer = new PIXI.Container();
+                    const enemyLabel = new PIXI.Text({text: data[1].name, style: playerLabelStyle});
+                    enemyLabel.position.y -= 40;
+                    enemyLabel.position.x += enemySprite.width/2 - enemyLabel.width/2;
+                    enemyContainer.addChild(enemySprite);
+                    enemyContainer.addChild(enemyLabel);
+                    const enemy = new Player(enemySprite, connId, data[1].name, enemyContainer);
+                    world.addChild(enemy.container);
+                    enemy.container.position = map.position;
                     players.push(enemy);
                     break;
                 case "UPDATE":
-                    const id = data[1].id;
-                    const delta = data[1].delta;
                     const horizontal = data[1].horizontal;
                     const jump = data[1].jump;
-                    let i;
+                    let i = 0;
 
-                    for (i = 0; i < players.length; i++) {
-                        if (players[i].id == id) {
-                            break;
-                        }
-                    }
+                    while (players[i+1] && players[i].id != connId) {
+                        i++;
+                    };
 
-                    if (horizontal > 0) {
-                        players[i].velocity.x += 0.8;
+                    if (players[i].horizontal !== horizontal) {
+                        players[i].horizontal = horizontal;
                     }
-                    else if (horizontal < 0) {
-                        players[i].velocity.x += -0.8;
-                    }
-                    else {
-                        // SLOW TO A STOP
-                        if (players[i].grounded) {
-                            players[i].velocity.x /= (1 + delta*0.4);
-                        }
-                        else {
-                            players[i].velocity.x /= (1 + delta*0.05);
-                        }
-                    }
-                    if (jump) {
-                        if (players[i].jumps > 0) {
-                            players[i].velocity.y = 3;
-                            players[i].jumps -= 1;
-                        }
-                    }
+                    players[i].jump = jump;
 
-                    players[i].update(delta, map.children, map.position);
-
-                    const playerPositions = [];
+                    // Return data
+                    const playerData = [];
                     for (let i = 0; i < players.length; i++) {
-                        const posX = players[i].sprite.position.x;
-                        const posY = players[i].sprite.position.y;
+                        const posX = players[i].container.position.x;
+                        const posY = players[i].container.position.y;
                         const velX = players[i].velocity.x;
                         const velY = players[i].velocity.y;
-                        playerPositions.push({x: posX, y: posY, vx: velX, vy: velY});
+                        playerData.push({x: posX, y: posY, vx: velX, vy: velY});
                     }
-                    conn.send(["UPDATE", playerPositions]);
+                    conn.send(["UPDATE", playerData]);
                     break;
                 default:
                     console.error("Data is not tagged or tag is not understood.")
                     break;
             }
             
+        });
+        conn.on('close', () => {
+            console.log(`Client '${connId}' disconnected from server`);
+            let stop = false;
+            let i = 0;
+            while (!stop && i < players.length) {
+                if (players[i].id == connId) {
+                    players[i].container.destroy({children:true, texture:true, baseTexture:true});
+                    players.splice(i, 1);
+                    stop = true;
+                }
+                i++;
+            }
         });
     });
     
@@ -292,10 +313,16 @@ function hostGame(mapNum) {
 
     // ADD PLAYER
     const playerSprite = new PIXI.Graphics(playerCtx);
-    player = new Player(playerSprite, peer.id, playerName);
+    const playerContainer = new PIXI.Container();
+    const playerLabel = new PIXI.Text({text: playerName, style: playerLabelStyle});
+    playerLabel.position.x += playerSprite.width/2 - playerLabel.width/2;
+    playerLabel.position.y -= 40;
+    playerContainer.addChild(playerSprite);
+    playerContainer.addChild(playerLabel);
+    player = new Player(playerSprite, peer.id, playerName, playerContainer);
     players.push(player);
-    world.addChild(player.sprite);
-    player.sprite.position = map.position;
+    world.addChild(player.container);
+    player.container.position = map.position;
 
     // ADD MAP
     app.stage.addChild(all);
@@ -303,7 +330,48 @@ function hostGame(mapNum) {
     // GAME LOOP
     app.ticker.maxFPS = 144;
     app.ticker.add((delta) => {
-        gameLoop(delta.deltaTime);
+        // HOST INPUTS
+        checkInputs();
+
+        // UPDATE
+        players.forEach(player => {
+            // UPDATE INPUTS
+            if (player.horizontal == -1) {
+                player.velocity.x += -0.8;
+            }
+            else if (player.horizontal == 1) {
+                player.velocity.x += 0.8;
+            }
+            else {
+                // SLOW TO A STOP
+                if (player.grounded) {
+                    player.velocity.x /= (1 + delta.deltaTime*0.4);
+                }
+                else {
+                    player.velocity.x /= (1 + delta.deltaTime*0.05);
+                }
+            }
+            if (player.jump) {
+                if (player.jumps > 0) {
+                    player.velocity.y = 3;
+                    player.jumps -= 1;
+                }
+            }
+
+            // UPDATE POSITION
+            player.update(delta.deltaTime, map.children, map.position);
+        });
+
+        // MOVE CAMERA
+        if (player.sprite) {
+            const moveX = player.sprite.getGlobalPosition().x - app.canvas.width/2;
+            const moveY = player.sprite.getGlobalPosition().y - app.canvas.height/2;
+            all.position.x -= moveX*delta.deltaTime*0.2;
+            all.position.y -= moveY*delta.deltaTime*0.2;
+        }
+        else {
+            console.warn("Player is not loaded. Cannot reposition camera.");
+        }
     });
 }
 
@@ -328,50 +396,7 @@ function createMap(mapNum) {
     all.addChild(world);
 }
 
-function gameLoop(delta) {
-    checkInputs(delta);
-
-    // UPDATE
-    player.update(delta, map.children, map.position);
-
-    // MOVE CAMERA
-    if (player.sprite) {
-        const moveX = player.sprite.getGlobalPosition().x - app.canvas.width/2;
-        const moveY = player.sprite.getGlobalPosition().y - app.canvas.height/2;
-        all.position.x -= moveX*delta*0.2;
-        all.position.y -= moveY*delta*0.2;
-    }
-    else {
-        console.warn("Player is not loaded. Cannot reposition camera.");
-    }
-    
-}
-
-function checkInputs(delta) {
-    if (left.isDown) {
-        player.velocity.x += -0.8;
-    }
-    else if (right.isDown) {
-        player.velocity.x += 0.8;
-    }
-    else {
-        // SLOW TO A STOP
-        if (player.grounded) {
-            player.velocity.x /= (1 + delta*0.4);
-        }
-        else {
-            player.velocity.x /= (1 + delta*0.05);
-        }
-    }
-    up.press = () => {
-        if (player.jumps > 0) {
-            player.velocity.y = 3;
-            player.jumps -= 1;
-        }
-    }
-}
-
-function checkInputsClient(delta) {
+function checkInputs() {
     let horizontal = 0;
     let jump = false;
     if (left.isDown) {
@@ -384,6 +409,6 @@ function checkInputsClient(delta) {
         jump = true;
         up.isDown = false;
     }
-
-    return({id: peer.id, delta: delta, horizontal: horizontal, jump: jump});
+    player.horizontal = horizontal;
+    player.jump = jump;
 }
